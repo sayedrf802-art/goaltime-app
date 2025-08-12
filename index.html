@@ -1,0 +1,615 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoalTime - جدول المباريات</title>
+
+    <meta name="description" content="GoalTime - تابع جدول مباريات كرة القدم مباشرة، النتائج، والمواعيد للدوريات الكبرى والبطولات العالمية.">
+    <meta name="keywords" content="مباريات اليوم, نتائج المباريات, جدول المباريات, كرة القدم, مباشر, الدوري الإنجليزي, دوري أبطال أوروبا, الدوري الإسباني, GoalTime">
+    <meta name="author" content="مطور ويب">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Cairo', sans-serif;
+            background-color: #0f172a; /* bg-slate-900 */
+        }
+        /* شريط التمرير المخصص */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        .match-card { cursor: pointer; }
+        .match-card:hover {
+            background-color: #1e293b; /* bg-slate-800 */
+        }
+        /* أنماط النافذة المنبثقة */
+        .modal { transition: opacity 0.3s ease; }
+        .modal-content {
+            max-height: 80vh;
+        }
+        /* نمط زر التصفية النشط */
+        .btn-filter-active {
+            background-color: #10b981 !important; /* bg-emerald-500 */
+            color: white;
+        }
+        /* أيقونات البطاقات */
+        .yellow-card { color: yellow; font-size: 1.25rem; }
+        .red-card { color: red; font-size: 1.25rem; }
+        /* Splash Screen styles */
+        #splash-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0f172a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.5s ease-in-out;
+        }
+        #splash-screen.fade-out {
+            opacity: 0;
+            visibility: hidden;
+        }
+        .splash-logo {
+            width: 150px;
+            height: 150px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .app-container.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <!-- Splash Screen -->
+    <div id="splash-screen">
+        <img src="https://storage.googleapis.com/g.co/img/gemini/imgs/2024/05/2024_05_15_09_53_06_148281146_ChatGPT_Image_11____2025_02_09_57__.png" alt="GoalTime Logo" class="splash-logo">
+        <h1 class="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400 mt-4">GoalTime</h1>
+    </div>
+
+    <div id="app-container" class="app-container hidden">
+
+        <!-- نافذة التفضيلات المنبثقة (للمستخدمين الجدد) -->
+        <div id="setup-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4 modal">
+            <div class="bg-slate-800 rounded-2xl shadow-xl w-full max-w-2xl modal-content flex flex-col">
+                <div class="p-6 border-b border-slate-700">
+                    <h2 id="setup-modal-title" class="text-2xl font-bold text-center"></h2>
+                    <p id="setup-modal-desc" class="text-slate-400 text-center mt-1"></p>
+                </div>
+                <div class="p-6 overflow-y-auto space-y-6">
+                    <div>
+                        <h3 id="fav-leagues-title" class="text-lg font-semibold mb-3"></h3>
+                        <div id="favorite-leagues-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-60 overflow-y-auto p-2 bg-slate-900 rounded-lg">
+                            <!-- الدوريات ستظهر هنا -->
+                        </div>
+                    </div>
+                    <div>
+                        <h3 id="fav-teams-title" class="text-lg font-semibold mb-3"></h3>
+                        <div id="favorite-teams-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-60 overflow-y-auto p-2 bg-slate-900 rounded-lg">
+                            <!-- الفرق ستظهر هنا -->
+                        </div>
+                    </div>
+                </div>
+                <div class="p-4 bg-slate-900/50 border-t border-slate-700 text-center">
+                    <button id="save-preferences-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-6 rounded-lg transition-colors"></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- نافذة تفاصيل المباراة المنبثقة الجديدة -->
+        <div id="match-details-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center p-4 modal">
+            <div class="bg-slate-800 rounded-2xl shadow-xl w-full max-w-2xl modal-content flex flex-col">
+                <div class="p-4 bg-slate-900/70 flex justify-between items-center border-b border-slate-700">
+                    <h2 id="modal-title" class="text-xl font-bold"></h2>
+                    <button id="close-modal-btn" class="text-slate-400 hover:text-white transition-colors">&times;</button>
+                </div>
+                <div id="modal-body" class="p-6 overflow-y-auto text-slate-200">
+                    <!-- المحتوى سيتم تحميله هنا -->
+                    <div id="modal-loading" class="text-center text-slate-400"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="app" class="container mx-auto p-4 max-w-4xl">
+            <!-- الرأس -->
+            <header class="text-center my-8 relative">
+                <div class="absolute top-0 end-0">
+                    <button id="language-toggle-btn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors text-sm font-semibold">EN</button>
+                </div>
+                <!-- الشعار الجديد -->
+                <img src="https://storage.googleapis.com/g.co/img/gemini/imgs/2024/05/2024_05_15_09_53_06_148281146_ChatGPT_Image_11____2025_02_09_57__.png" alt="GoalTime Logo" class="mx-auto w-36 h-36 mb-4">
+                <h1 class="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">GoalTime</h1>
+                <p id="header-subtitle" class="text-slate-400 mt-2"></p>
+            </header>
+            
+            <!-- أدوات التحكم -->
+            <div class="bg-slate-800/60 backdrop-blur-sm p-3 rounded-xl mb-6 space-y-4">
+                <!-- التنقل بين التواريخ -->
+                <div class="flex items-center justify-center gap-2">
+                    <button id="next-day-btn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"><span id="next-day-text"></span> &larr;</button>
+                    <input type="date" id="date-picker" class="bg-slate-700 border-slate-600 rounded-lg p-2 text-slate-200 focus:ring-emerald-500 focus:border-emerald-500 w-36 text-center">
+                    <button id="prev-day-btn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors">&rarr; <span id="prev-day-text"></span></button>
+                </div>
+                <!-- الفلاتر -->
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-2">
+                    <select id="league-filter" class="w-full sm:w-64 bg-slate-700 border-slate-600 rounded-lg p-2.5 text-slate-200 focus:ring-emerald-500 focus:border-emerald-500">
+                        <option id="all-leagues-option" value="all"></option>
+                    </select>
+                    <button id="live-filter-btn" class="w-full sm:w-auto px-4 py-2.5 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors font-semibold"><span id="live-filter-text"></span></button>
+                </div>
+            </div>
+
+            <!-- حاوية المباريات -->
+            <main id="matches-container" class="space-y-6"></main>
+
+            <!-- عرض الرسائل/الأخطاء -->
+            <div id="message-display" class="text-center p-8 text-slate-400 hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        // العناصر في DOM
+        const htmlElement = document.documentElement;
+        const datePicker = document.getElementById('date-picker');
+        const matchesContainer = document.getElementById('matches-container');
+        const messageDisplay = document.getElementById('message-display');
+        const leagueFilter = document.getElementById('league-filter');
+        const prevDayBtn = document.getElementById('prev-day-btn');
+        const nextDayBtn = document.getElementById('next-day-btn');
+        const setupModal = document.getElementById('setup-modal');
+        const savePreferencesBtn = document.getElementById('save-preferences-btn');
+        const favLeaguesList = document.getElementById('favorite-leagues-list');
+        const favTeamsList = document.getElementById('favorite-teams-list');
+        const liveFilterBtn = document.getElementById('live-filter-btn');
+        const languageToggleBtn = document.getElementById('language-toggle-btn');
+        const splashScreen = document.getElementById('splash-screen');
+        const appContainer = document.getElementById('app-container');
+
+        // عناصر النافذة المنبثقة الجديدة
+        const matchDetailsModal = document.getElementById('match-details-modal');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBody = document.getElementById('modal-body');
+
+        // API والحالة
+        const API_HOST = 'v3.football.api-sports.io';
+        const apiKey = '2ad7a53bf64c919d6dc8bccc1a6d0216'; 
+        let allMatchesData = []; 
+        let showOnlyLive = false;
+        let isArabic = true;
+        const priorityOrder = [1, 4, 9, 21, 8, 2, 3, 39, 140, 135, 78, 61, 45, 528, 143, 137, 81, 848, 203, 10];
+
+        // --- نصوص التطبيق باللغتين ---
+        const strings = {
+            ar: {
+                title: 'GoalTime - جدول المباريات',
+                subtitle: 'جدول مباريات اليوم وأكثر',
+                prevDay: 'الأمس',
+                nextDay: 'الغد',
+                allLeagues: 'كل الدوريات',
+                liveMatches: 'مباريات مباشرة',
+                setupModalTitle: 'تخصيص تجربتك',
+                setupModalDesc: 'اختر دورياتك وفرقك المفضلة لعرضها أولاً.',
+                favLeaguesTitle: 'الدوريات والبطولات المفضلة',
+                favTeamsTitle: 'الفرق المفضلة',
+                saveBtn: 'حفظ و متابعة',
+                noMatches: 'لا توجد مباريات تطابق الفلتر المحدد.',
+                loading: 'جاري التحميل...',
+                apiError: 'حدث خطأ: ',
+                checkApiKey: 'يرجى التحقق من مفتاح API.',
+                matchDetailsTitle: 'تفاصيل المباراة',
+                eventsLoading: 'جاري تحميل الأحداث...',
+                noEvents: 'لا توجد أحداث مسجلة لهذه المباراة.',
+                noGoalsOrCards: 'لا توجد أهداف أو إنذارات مسجلة لهذه المباراة.',
+                finished: 'انتهت',
+            },
+            en: {
+                title: 'GoalTime - Match Schedule',
+                subtitle: 'Today\'s matches and more',
+                prevDay: 'Yesterday',
+                nextDay: 'Tomorrow',
+                allLeagues: 'All Leagues',
+                liveMatches: 'Live Matches',
+                setupModalTitle: 'Customize Your Experience',
+                setupModalDesc: 'Select your favorite leagues and teams to show them first.',
+                favLeaguesTitle: 'Favorite Leagues & Competitions',
+                favTeamsTitle: 'Favorite Teams',
+                saveBtn: 'Save & Continue',
+                noMatches: 'No matches found matching the selected filter.',
+                loading: 'Loading matches...',
+                apiError: 'An error occurred: ',
+                checkApiKey: 'Please check your API key.',
+                matchDetailsTitle: 'Match Details',
+                eventsLoading: 'Loading events...',
+                noEvents: 'No events recorded for this match.',
+                noGoalsOrCards: 'No goals or cards recorded for this match.',
+                finished: 'Finished',
+            }
+        };
+
+        // --- تحديث الواجهة باللغة الحالية ---
+        function updateUI() {
+            const currentStrings = isArabic ? strings.ar : strings.en;
+            
+            // تحديث خصائص HTML الأساسية
+            htmlElement.lang = isArabic ? 'ar' : 'en';
+            htmlElement.dir = isArabic ? 'rtl' : 'ltr';
+            document.title = currentStrings.title;
+
+            // تحديث النصوص في الواجهة مع التحقق من وجود العناصر
+            const headerSubtitle = document.getElementById('header-subtitle');
+            if (headerSubtitle) headerSubtitle.textContent = currentStrings.subtitle;
+            
+            const prevDayText = document.getElementById('prev-day-text');
+            if (prevDayText) prevDayText.textContent = currentStrings.prevDay;
+            
+            const nextDayText = document.getElementById('next-day-text');
+            if (nextDayText) nextDayText.textContent = currentStrings.nextDay;
+            
+            const allLeaguesOption = document.getElementById('all-leagues-option');
+            if (allLeaguesOption) allLeaguesOption.textContent = currentStrings.allLeagues;
+            
+            const liveFilterText = document.getElementById('live-filter-text');
+            if (liveFilterText) liveFilterText.textContent = currentStrings.liveMatches;
+            
+            const setupModalTitle = document.getElementById('setup-modal-title');
+            if (setupModalTitle) setupModalTitle.textContent = currentStrings.setupModalTitle;
+            
+            const setupModalDesc = document.getElementById('setup-modal-desc');
+            if (setupModalDesc) setupModalDesc.textContent = currentStrings.setupModalDesc;
+            
+            const favLeaguesTitle = document.getElementById('fav-leagues-title');
+            if (favLeaguesTitle) favLeaguesTitle.textContent = currentStrings.favLeaguesTitle;
+            
+            const favTeamsTitle = document.getElementById('fav-teams-title');
+            if (favTeamsTitle) favTeamsTitle.textContent = currentStrings.favTeamsTitle;
+            
+            const savePreferencesBtn = document.getElementById('save-preferences-btn');
+            if (savePreferencesBtn) savePreferencesBtn.textContent = currentStrings.saveBtn;
+            
+            const modalTitle = document.getElementById('modal-title');
+            if (modalTitle) modalTitle.textContent = currentStrings.matchDetailsTitle;
+            
+            const languageToggleBtn = document.getElementById('language-toggle-btn');
+            if (languageToggleBtn) languageToggleBtn.textContent = isArabic ? 'EN' : 'AR';
+            
+            // إعادة عرض المباريات لتحديث أي نصوص داخلها
+            renderFixtures(allMatchesData);
+        }
+
+        // --- التفضيلات والإعداد ---
+        function showSetupModal() {
+            populateSetupLists();
+            setupModal.classList.remove('hidden');
+            // تحديث نصوص النافذة المنبثقة مباشرة بعد ظهورها
+            updateUI();
+        }
+
+        function savePreferences() {
+            const selectedLeagues = Array.from(favLeaguesList.querySelectorAll('input:checked')).map(el => el.value);
+            const selectedTeams = Array.from(favTeamsList.querySelectorAll('input:checked')).map(el => el.value);
+            localStorage.setItem('goaltime_prefs', JSON.stringify({ leagues: selectedLeagues, teams: selectedTeams, setupComplete: true, isArabic }));
+            setupModal.classList.add('hidden');
+            fetchMatches(datePicker.value);
+        }
+
+        function populateSetupLists() {
+            const majorLeagues = [
+                { id: 1, name: 'World Cup' }, { id: 4, name: 'Euro Championship' },
+                { id: 21, name: 'Africa Cup of Nations' }, { id: 8, name: 'African Nations Championship' },
+                { id: 2, name: 'Champions League' }, { id: 3, name: 'Europa League' },
+                { id: 39, name: 'Premier League' }, { id: 140, name: 'La Liga' },
+                { id: 135, name: 'Serie A' }, { id: 78, name: 'Bundesliga' },
+                { id: 45, name: 'FA Cup' }, { id: 528, name: 'Community Shield' },
+                { id: 848, name: 'Saudi Pro League'}, { id: 203, name: 'Egyptian Premier League'}
+            ];
+            const majorTeams = [
+                { id: 33, name: 'Man United' }, { id: 40, name: 'Liverpool' }, { id: 42, name: 'Arsenal' },
+                { id: 50, name: 'Man City' }, { id: 529, name: 'Barcelona' }, { id: 541, name: 'Real Madrid' },
+                { id: 489, name: 'AC Milan' }, { id: 496, name: 'Juventus' }, { id: 157, name: 'Bayern Munich' },
+                { id: 85, name: 'PSG' }, { id: 631, name: 'Al Nassr' }, { id: 643, name: 'Al Hilal' }
+            ];
+
+            favLeaguesList.innerHTML = majorLeagues.map(l => `
+                <label class="flex items-center gap-2 bg-slate-700/50 p-2 rounded-md cursor-pointer hover:bg-slate-700">
+                    <input type="checkbox" value="${l.id}" class="form-checkbox h-5 w-5 rounded bg-slate-900 border-slate-600 text-emerald-500 focus:ring-emerald-600">
+                    <span class="text-sm">${l.name}</span>
+                </label>`).join('');
+            
+            favTeamsList.innerHTML = majorTeams.map(t => `
+                <label class="flex items-center gap-2 bg-slate-700/50 p-2 rounded-md cursor-pointer hover:bg-slate-700">
+                    <input type="checkbox" value="${t.id}" class="form-checkbox h-5 w-5 rounded bg-slate-900 border-slate-600 text-emerald-500 focus:ring-emerald-600">
+                    <span class="text-sm">${t.name}</span>
+                </label>`).join('');
+        }
+
+        // --- العرض ---
+        function renderFixtures(data) {
+            const currentStrings = isArabic ? strings.ar : strings.en;
+            matchesContainer.innerHTML = '';
+            const selectedLeagueId = leagueFilter.value;
+            
+            const liveStatuses = ['1H', 'HT', '2H', 'ET', 'P'];
+            let filteredMatches = showOnlyLive 
+                ? data.filter(m => liveStatuses.includes(m.fixture.status.short))
+                : data;
+
+            if (selectedLeagueId !== 'all') {
+                filteredMatches = filteredMatches.filter(m => m.league.id == selectedLeagueId);
+            }
+
+            if (filteredMatches.length === 0) {
+                messageDisplay.textContent = currentStrings.noMatches;
+                messageDisplay.classList.remove('hidden');
+                return;
+            }
+            messageDisplay.classList.add('hidden');
+            
+            const leaguesMap = new Map();
+            filteredMatches.forEach(match => {
+                const leagueId = match.league.id;
+                if (!leaguesMap.has(leagueId)) {
+                    leaguesMap.set(leagueId, { leagueInfo: match.league, matches: [] });
+                }
+                leaguesMap.get(leagueId).matches.push(match);
+            });
+
+            const prefs = JSON.parse(localStorage.getItem('goaltime_prefs')) || { leagues: [], teams: [] };
+            
+            const sortedLeagues = Array.from(leaguesMap.values()).sort((a, b) => {
+                const aIsFav = prefs.leagues.includes(a.leagueInfo.id.toString());
+                const bIsFav = prefs.leagues.includes(b.leagueInfo.id.toString());
+                if (aIsFav && !bIsFav) return -1;
+                if (!aIsFav && bIsFav) return 1;
+
+                const aPrio = priorityOrder.indexOf(a.leagueInfo.id);
+                const bPrio = priorityOrder.indexOf(b.leagueInfo.id);
+                if (aPrio !== -1 && bPrio !== -1) return aPrio - bPrio;
+                if (aPrio !== -1) return -1;
+                if (bPrio !== -1) return 1;
+                
+                return a.leagueInfo.name.localeCompare(b.leagueInfo.name);
+            });
+
+            sortedLeagues.forEach(leagueGroup => {
+                const leagueContainer = document.createElement('div');
+                leagueContainer.className = 'bg-slate-800/50 backdrop-blur-sm border border-slate-700 rounded-xl overflow-hidden';
+                leagueContainer.innerHTML = `
+                    <div class="bg-slate-900/70 px-4 py-3 border-b border-slate-700 flex items-center gap-3">
+                        <img src="${leagueGroup.leagueInfo.logo}" alt="${leagueGroup.leagueInfo.name}" class="w-6 h-6 object-contain" onerror="this.style.display='none'">
+                        <h2 class="text-lg font-bold text-slate-200">${leagueGroup.leagueInfo.name}</h2>
+                    </div>
+                    <div class="divide-y divide-slate-800">${leagueGroup.matches.map(match => renderMatch(match)).join('')}</div>`;
+                matchesContainer.appendChild(leagueContainer);
+            });
+        }
+
+        // تم تعديل هذه الدالة لجعل بطاقات المباريات قابلة للضغط
+        function renderMatch(match) {
+            const { fixture, teams, goals } = match;
+            const timeString = new Date(fixture.date).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+            const currentStrings = isArabic ? strings.ar : strings.en;
+            let statusHTML = '';
+            switch (fixture.status.short) {
+                case 'NS': statusHTML = `<div class="text-lg font-bold text-slate-300">${timeString}</div>`; break;
+                case '1H': case 'HT': case '2H': case 'ET': case 'P':
+                    statusHTML = `<div class="text-center"><div class="text-lg font-bold text-emerald-400">${goals.home ?? 0} - ${goals.away ?? 0}</div><div class="text-xs text-emerald-500 animate-pulse">Live ${fixture.status.elapsed}'</div></div>`; break;
+                case 'FT': case 'AET': case 'PEN':
+                    statusHTML = `<div class="text-center"><div class="text-lg font-bold">${goals.home} - ${goals.away}</div><div class="text-xs text-slate-500">${currentStrings.finished}</div></div>`; break;
+                default: statusHTML = `<div class="text-sm text-slate-400">${fixture.status.long}</div>`;
+            }
+            // إضافة onclick event لاستدعاء showMatchDetails
+            return `<div onclick="showMatchDetails(${fixture.id}, '${teams.home.name}', '${teams.away.name}')" class="flex items-center justify-between p-4 match-card transition-colors duration-200"><div class="flex items-center gap-3 w-2/5 justify-end"><span class="text-base md:text-lg font-semibold text-right flex-1">${teams.home.name}</span><img src="${teams.home.logo}" alt="${teams.home.name}" class="w-8 h-8 object-contain"></div><div class="w-1/5 text-center">${statusHTML}</div><div class="flex items-center gap-3 w-2/5"><img src="${teams.away.logo}" alt="${teams.away.name}" class="w-8 h-8 object-contain"><span class="text-base md:text-lg font-semibold text-left flex-1">${teams.away.name}</span></div></div>`;
+        }
+        
+        function updateLeagueFilter(data) {
+            const currentStrings = isArabic ? strings.ar : strings.en;
+            if (!data) return;
+            const leaguesInView = [...new Map(data.map(m => [m.league.id, m.league])).values()];
+            
+            // ترتيب الدوريات في القائمة المنسدلة حسب الأهمية
+            leaguesInView.sort((a, b) => {
+                const aPrio = priorityOrder.indexOf(a.id);
+                const bPrio = priorityOrder.indexOf(b.id);
+
+                if (aPrio !== -1 && bPrio !== -1) return aPrio - bPrio; // كلاهما مهم
+                if (aPrio !== -1) return -1; // "a" مهم، و "b" ليس كذلك
+                if (bPrio !== -1) return 1; // "b" مهم، و "a" ليس كذلك
+                
+                return a.name.localeCompare(b.name); // لا يوجد ترتيب أهمية، فرز أبجدي
+            });
+
+            const currentVal = leagueFilter.value;
+            leagueFilter.innerHTML = `<option value="all">${currentStrings.allLeagues}</option>`;
+            leaguesInView.forEach(league => {
+                leagueFilter.innerHTML += `<option value="${league.id}">${league.name}</option>`;
+            });
+            leagueFilter.value = currentVal;
+        }
+
+        // --- دالة جديدة لجلب وعرض تفاصيل المباراة ---
+        async function showMatchDetails(fixtureId, homeTeam, awayTeam) {
+            const currentStrings = isArabic ? strings.ar : strings.en;
+            modalTitle.textContent = `${homeTeam} vs ${awayTeam}`;
+            modalBody.innerHTML = `<div class="text-center text-slate-400">${currentStrings.eventsLoading}</div>`;
+            matchDetailsModal.classList.remove('hidden');
+
+            const url = `https://v3.football.api-sports.io/fixtures/events?fixture=${fixtureId}`;
+            try {
+                const response = await fetch(url, { method: 'GET', headers: { 'x-rapidapi-host': API_HOST, 'x-rapidapi-key': apiKey } });
+                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                const data = await response.json();
+
+                if (data.errors && Object.keys(data.errors).length > 0) {
+                    throw new Error(data.errors.token || JSON.stringify(data.errors));
+                }
+
+                renderMatchEvents(data.response, homeTeam, awayTeam);
+            } catch (error) {
+                console.error("Failed to fetch match details:", error);
+                modalBody.innerHTML = `<div class="text-center text-red-400">${currentStrings.apiError}${error.message}</div>`;
+            }
+        }
+
+        function renderMatchEvents(events, homeTeamName, awayTeamName) {
+            const currentStrings = isArabic ? strings.ar : strings.en;
+            modalBody.innerHTML = '';
+            if (events.length === 0) {
+                modalBody.innerHTML = `<div class="text-center text-slate-400">${currentStrings.noEvents}</div>`;
+                return;
+            }
+
+            const eventsByTime = events.sort((a, b) => a.time.elapsed - b.time.elapsed);
+            let eventsHTML = '';
+
+            eventsByTime.forEach(event => {
+                const isHomeTeam = event.team.name === homeTeamName;
+                const alignment = isHomeTeam ? 'text-right' : 'text-left';
+                let eventIcon = '';
+
+                if (event.type === 'Goal') {
+                    eventIcon = '⚽️';
+                } else if (event.type === 'Card') {
+                    eventIcon = event.detail.includes('Yellow') ? '🟡' : '🔴';
+                } else {
+                    return; // تجاهل الأحداث الأخرى
+                }
+
+                eventsHTML += `
+                    <div class="flex items-center justify-between py-2 border-b border-slate-700 last:border-b-0">
+                        <div class="w-1/3 ${isHomeTeam ? 'text-right' : 'text-transparent'}">
+                            ${isHomeTeam ? `<span class="font-bold">${event.player.name}</span>` : ''}
+                        </div>
+                        <div class="w-1/3 text-center flex items-center justify-center gap-2">
+                            <span class="text-sm text-slate-400">${event.time.elapsed}'</span>
+                            <span class="text-lg">${eventIcon}</span>
+                        </div>
+                        <div class="w-1/3 ${!isHomeTeam ? 'text-left' : 'text-transparent'}">
+                            ${!isHomeTeam ? `<span class="font-bold">${event.player.name}</span>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            if (eventsHTML === '') {
+                modalBody.innerHTML = `<div class="text-center text-slate-400">${currentStrings.noGoalsOrCards}</div>`;
+            } else {
+                modalBody.innerHTML = eventsHTML;
+            }
+        }
+        
+        // --- جلب البيانات ---
+        async function fetchMatches(date) {
+            console.log("Fetching matches for date:", date); // Add this for debugging
+            const currentStrings = isArabic ? strings.ar : strings.en;
+            matchesContainer.innerHTML = `<div class="text-center text-slate-400 p-8">${currentStrings.loading}</div>`;
+            
+            if (apiKey === 'YOUR_API_KEY_HERE' || !apiKey) {
+                messageDisplay.textContent = `${currentStrings.apiError} ${currentStrings.checkApiKey}`;
+                messageDisplay.classList.remove('hidden');
+                return;
+            }
+
+            if (!date) {
+                console.error("No date provided to fetchMatches.");
+                return;
+            }
+
+            const url = `https://v3.football.api-sports.io/fixtures?date=${date}`;
+            try {
+                const response = await fetch(url, { method: 'GET', headers: { 'x-rapidapi-host': API_HOST, 'x-rapidapi-key': apiKey } });
+                if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                const data = await response.json();
+                
+                if (data.errors && Object.keys(data.errors).length > 0) {
+                    throw new Error(data.errors.token || JSON.stringify(data.errors));
+                }
+                
+                allMatchesData = data.response; // تخزين جميع المباريات لهذا اليوم
+                renderFixtures(allMatchesData);
+                updateLeagueFilter(allMatchesData);
+
+            } catch (error) {
+                console.error("Failed to fetch matches:", error);
+                matchesContainer.innerHTML = '';
+                messageDisplay.textContent = `${currentStrings.apiError}${error.message}. ${currentStrings.checkApiKey}`;
+                messageDisplay.classList.remove('hidden');
+            }
+        }
+
+        // --- معالجات الأحداث ---
+        function handleDateChange(offset) {
+            const currentDate = new Date(datePicker.value);
+            currentDate.setDate(currentDate.getDate() + offset);
+            datePicker.value = currentDate.toISOString().split('T')[0];
+            fetchMatches(datePicker.value);
+        }
+
+        function toggleLanguage() {
+            isArabic = !isArabic;
+            localStorage.setItem('goaltime_isArabic', isArabic);
+            updateUI();
+        }
+
+        datePicker.addEventListener('change', () => fetchMatches(datePicker.value));
+        prevDayBtn.addEventListener('click', () => handleDateChange(-1));
+        nextDayBtn.addEventListener('click', () => handleDateChange(1));
+        leagueFilter.addEventListener('change', () => renderFixtures(allMatchesData));
+        savePreferencesBtn.addEventListener('click', savePreferences);
+        liveFilterBtn.addEventListener('click', () => {
+            showOnlyLive = !showOnlyLive;
+            liveFilterBtn.classList.toggle('btn-filter-active');
+            renderFixtures(allMatchesData);
+        });
+
+        closeModalBtn.addEventListener('click', () => {
+            matchDetailsModal.classList.add('hidden');
+        });
+        
+        languageToggleBtn.addEventListener('click', toggleLanguage);
+
+        // --- التهيئة الأولية ---
+        function initialize() {
+            const savedLanguage = localStorage.getItem('goaltime_isArabic');
+            if (savedLanguage !== null) {
+                isArabic = JSON.parse(savedLanguage);
+            }
+            updateUI(); // تحديث الواجهة باللغة المحفوظة
+
+            const todayDateString = new Date().toISOString().split('T')[0];
+            datePicker.value = todayDateString;
+
+            setTimeout(() => {
+                splashScreen.classList.add('fade-out');
+                appContainer.classList.remove('hidden');
+
+                // بعد اختفاء شاشة البداية، نفحص التفضيلات
+                const prefs = localStorage.getItem('goaltime_prefs');
+                if (!prefs || !JSON.parse(prefs).setupComplete) {
+                    showSetupModal();
+                } else {
+                    // Pass the pre-calculated date string directly
+                    fetchMatches(todayDateString);
+                }
+            }, 3000); // 3 ثواني عرض لشاشة البداية
+        }
+
+        initialize();
+    </script>
+</body>
+</html>
+
